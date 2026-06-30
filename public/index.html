@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AI Sales Worker | HK SME Lead Follow-up</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            whatsapp: '#25D366',
+            whatsappDark: '#128C7E',
+            whatsappLight: '#DCF8C6',
+            hkRed: '#C41E3A',
+            hkGold: '#FFD700',
+            pipeline: {
+              new: '#6366F1',
+              contacted: '#F59E0B',
+              qualified: '#10B981',
+              converted: '#EF4444',
+              lost: '#9CA3AF',
+              escalated: '#8B5CF6'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+HK:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', 'Noto Sans HK', sans-serif; }
+    .wa-chat-bubble-in {
+      background: #DCF8C6;
+      border-radius: 8px 0 8px 8px;
+    }
+    .wa-chat-bubble-out {
+      background: #FFFFFF;
+      border-radius: 0 8px 8px 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    .wa-chat-bubble-ai {
+      background: #E8F0FE;
+      border-radius: 0 8px 8px 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    .pipeline-dot { width: 12px; height: 12px; }
+    .kpi-card { transition: transform 0.2s, box-shadow 0.2s; }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .tab-active { border-bottom: 3px solid #25D366; color: #128C7E; }
+    .tab-inactive { border-bottom: 3px solid transparent; color: #6B7280; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      display: flex; align-items: center; justify-content: center; z-index: 50;
+    }
+    /* Loading spinner */
+    .loading-spinner {
+      display: inline-block; width: 24px; height: 24px;
+      border: 3px solid #E5E7EB; border-top-color: #25D366;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay {
+      position: relative; min-height: 200px;
+    }
+    .loading-overlay::before {
+      content: ''; position: absolute; inset: 0;
+      background: rgba(255,255,255,0.7); z-index: 10;
+      border-radius: 12px;
+    }
+    .loading-overlay::after {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 32px; height: 32px;
+      border: 4px solid #E5E7EB; border-top-color: #25D366;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      z-index: 11;
+    }
+    /* Skeleton placeholder */
+    .skeleton {
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: skeleton-pulse 1.5s ease-in-out infinite;
+      border-radius: 4px;
+    }
+    @keyframes skeleton-pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    /* Empty state */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 40px 20px; text-align: center;
+    }
+    .empty-state-icon {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: #F3F4F6; display: flex; align-items: center;
+      justify-content: center; margin-bottom: 16px;
+    }
+    /* Confirmation modal */
+    .confirm-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      display: flex; align-items: center; justify-content: center; z-index: 60;
+    }
+    /* Attention card pulse */
+    .attention-pulse {
+      animation: attentionPulse 2s ease-in-out infinite;
+    }
+    @keyframes attentionPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(37, 211, 102, 0); }
+    }
+    /* Landing banner */
+    .landing-banner {
+      background: linear-gradient(135deg, #25D366 0%, #128C7E 50%, #0D6B5E 100%);
+      color: white;
+    }
+    /* CEO Demo Mode overlay */
+    .demo-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      z-index: 70; display: flex; align-items: center; justify-content: center;
+    }
+    .demo-highlight {
+      position: relative; z-index: 71;
+      box-shadow: 0 0 0 4px #25D366, 0 0 30px rgba(37, 211, 102, 0.5);
+      border-radius: 12px;
+    }
+    /* Visual polish */
+    .card-polish {
+      border-radius: 12px;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .card-polish:hover {
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    /* Tab transition polish */
+    .tab-btn {
+      transition: color 0.2s, border-color 0.2s;
+    }
+    /* Smooth button hover */
+    .btn-smooth {
+      transition: background-color 0.2s, transform 0.1s;
+    }
+    .btn-smooth:hover { transform: translateY(-1px); }
+    .btn-smooth:active { transform: translateY(0); }
+
+    /* ========== Mobile Responsive ========== */
+    @media (max-width: 768px) {
+      /* Stack KPI cards 2x2 on tablet */
+      .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      /* Pipeline cards stack */
+      .pipe-grid { grid-template-columns: repeat(3, 1fr) !important; }
+      /* Dashboard bottom panels stack */
+      .dash-bottom { grid-template-columns: 1fr !important; }
+      /* Conversation panel: full width, no split */
+      .conv-layout { flex-direction: column !important; }
+      .conv-lead-list { width: 100% !important; max-height: 120px; border-right: none !important; border-bottom: 1px solid #E5E7EB; }
+      .conv-chat { width: 100% !important; }
+      /* Header compact */
+      .header-bar { padding: 8px 12px !important; }
+      .header-title { font-size: 14px !important; }
+      .header-sub { display: none; }
+      .header-status { display: none; }
+      /* Landing banner compact */
+      .landing-banner { padding: 10px 12px !important; }
+      .landing-text { font-size: 13px !important; }
+      /* Demo mode button compact */
+      .demo-btn-text { display: none; }
+      /* Pipeline table scroll */
+      .pipe-table-wrap { overflow-x: auto; }
+      /* Tab nav scrollable on mobile */
+      .tab-nav { overflow-x: auto; }
+    }
+    @media (max-width: 480px) {
+      /* KPI cards single column on phone */
+      .kpi-grid { grid-template-columns: 1fr !important; }
+      /* Pipeline cards 2-column on phone */
+      .pipe-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      /* Header extra compact */
+      .header-bar { padding: 6px 8px !important; }
+      .header-new-btn { padding: 4px 8px !important; font-size: 12px !important; }
+      .landing-text { font-size: 12px !important; }
+      /* Bottom panels full stack */
+      .dash-bottom { grid-template-columns: 1fr !important; }
+      /* Daily trend shorter */
+      .daily-trend { height: 80px !important; }
+      /* Chat input compact */
+      .chat-input-row { flex-direction: column !important; }
+      .chat-input-row button { width: 100% !important; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Landing Banner -->
+  <div class="landing-banner px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <svg class="w-5 h-5 text-white/80" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      <span class="landing-text text-sm font-medium">AI Sales Worker helps SMEs reply, qualify, and follow up every lead automatically.</span>
+    </div>
+    <button onclick="startDemoMode()" class="btn-smooth bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 border border-white/30">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span class="demo-btn-text">CEO Demo</span>
+    </button>
+  </div>
+
+  <!-- Top Bar -->
+  <header class="header-bar bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-whatsapp flex items-center justify-center">
+        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.88 11.88 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="header-title text-lg font-semibold text-gray-900">AI Sales Worker</h1>
+        <p class="header-sub text-xs text-gray-500">中國香港 SME | WhatsApp Lead Follow-up</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="header-status flex items-center gap-1 text-sm text-green-600">
+        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+        Auto Follow-up ON
+      </div>
+      <button onclick="openNewLeadModal()" class="header-new-btn btn-smooth bg-whatsapp hover:bg-whatsappDark text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        New Lead
+      </button>
+    </div>
+  </header>
+
+  <!-- Tab Navigation -->
+  <nav class="tab-nav bg-white border-b border-gray-100 px-6 flex gap-6">
+    <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn py-3 px-1 text-sm font-medium tab-active">Dashboard</button>
+    <button onclick="switchTab('pipeline')" id="tab-pipeline" class="tab-btn py-3 px-1 text-sm font-medium tab-inactive">Pipeline</button>
+    <button onclick="switchTab('conversations')" id="tab-conversations" class="tab-btn py-3 px-1 text-sm font-medium tab-inactive">Conversations</button>
+    <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn py-3 px-1 text-sm font-medium tab-inactive">Settings</button>
+  </nav>
+
+  <!-- Dashboard Tab -->
+  <div id="view-dashboard" class="p-6 fade-in">
+    <!-- Needs Attention Today Card -->
+    <div id="attention-card" class="card-polish bg-white rounded-xl p-5 border-2 border-whatsapp/30 shadow-sm mb-6 attention-pulse" style="display:none;">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-8 h-8 rounded-full bg-whatsapp/10 flex items-center justify-center">
+          <svg class="w-5 h-5 text-whatsapp" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+        </div>
+        <h3 class="text-sm font-semibold text-gray-900">Needs Attention Today</h3>
+        <span id="attention-total" class="ml-auto text-xs bg-whatsapp text-white px-2 py-1 rounded-full font-medium"></span>
+      </div>
+      <div id="attention-items" class="space-y-2"></div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid grid grid-cols-4 gap-4 mb-6">
+      <div class="kpi-card card-polish bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+        <div class="text-xs text-gray-500 mb-1">Total Leads</div>
+        <div class="text-2xl font-bold text-gray-900" id="kpi-leads">-</div>
+        <div class="text-xs text-gray-400 mt-1" id="kpi-leads-sub">Today: -</div>
+      </div>
+      <div class="kpi-card card-polish bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+        <div class="text-xs text-gray-500 mb-1">Response Rate</div>
+        <div class="text-2xl font-bold text-green-600" id="kpi-response">-</div>
+        <div class="text-xs text-gray-400 mt-1">Avg response: <span id="kpi-response-time">-</span></div>
+      </div>
+      <div class="kpi-card card-polish bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+        <div class="text-xs text-gray-500 mb-1">Conversion Rate</div>
+        <div class="text-2xl font-bold text-hkRed" id="kpi-conversion">-</div>
+        <div class="text-xs text-gray-400 mt-1">Qualified: <span id="kpi-qualified">-</span></div>
+      </div>
+      <div class="kpi-card card-polish bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+        <div class="text-xs text-gray-500 mb-1">Revenue (HKD)</div>
+        <div class="text-2xl font-bold text-hkGold" id="kpi-revenue">-</div>
+        <div class="text-xs text-gray-400 mt-1">Pipeline: HKD <span id="kpi-pipeline">-</span></div>
+      </div>
+    </div>
+
+    <!-- Pipeline Funnel + Recent Leads -->
+    <div class="dash-bottom grid grid-cols-3 gap-4">
+      <!-- Pipeline Funnel -->
+      <div class="card-polish bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">Lead Pipeline</h3>
+        <div id="pipeline-funnel" class="space-y-3"></div>
+      </div>
+
+      <!-- Industry Breakdown -->
+      <div class="card-polish bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">Industry Breakdown</h3>
+        <div id="industry-breakdown" class="space-y-3"></div>
+      </div>
+
+      <!-- Recent Leads -->
+      <div class="card-polish bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">Recent Leads</h3>
+        <div id="recent-leads" class="space-y-2 max-h-64 overflow-y-auto"></div>
+      </div>
+    </div>
+
+    <!-- Daily Trend -->
+    <div class="card-polish bg-white rounded-xl p-5 border border-gray-100 shadow-sm mt-4">
+      <h3 class="text-sm font-semibold text-gray-700 mb-4">Daily Lead Trend</h3>
+      <div id="daily-trend" class="flex items-end gap-2 h-32 daily-trend"></div>
+    </div>
+  </div>
+
+  <!-- Pipeline Tab -->
+  <div id="view-pipeline" class="p-6 fade-in hidden">
+    <div class="pipe-grid grid grid-cols-6 gap-3 mb-6">
+      <div onclick="filterPipeline('new')" class="cursor-pointer card-polish bg-white rounded-xl p-4 border-2 border-pipeline-new/30 shadow-sm hover:border-pipeline-new transition-colors">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="pipeline-dot rounded-full bg-pipeline-new"></span>
+          <span class="text-sm font-medium text-gray-700">New</span>
+        </div>
+        <div class="text-xl font-bold" id="pipe-new-count">-</div>
+        <div class="text-xs text-gray-400">HKD <span id="pipe-new-value">-</span></div>
+      </div>
+      <div onclick="filterPipeline('contacted')" class="cursor-pointer card-polish bg-white rounded-xl p-4 border-2 border-pipeline-contacted/30 shadow-sm hover:border-pipeline-contacted transition-colors">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="pipeline-dot rounded-full bg-pipeline-contacted"></span>
+          <span class="text-sm font-medium text-gray-700">Contacted</span>
+        </div>
+        <div class="text-xl font-bold" id="pipe-contacted-count">-</div>
+        <div class="text-xs text-gray-400">HKD <span id="pipe-contacted-value">-</span></div>
+      </div>
+      <div onclick="filterPipeline('qualified')" class="cursor-pointer card-polish bg-white rounded-xl p-4 border-2 border-pipeline-qualified/30 shadow-sm hover:border-pipeline-qualified transition-colors">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="pipeline-dot rounded-full bg-pipeline-qualified"></span>
+          <span class="text-sm font-medium text-gray-700">Qualified</span>
+        </div>
+        <div class="text-xl font-bold" id="pipe-qualified-count">-</div>
+        <div class="text-xs text-gray-400">HKD <span id="pipe-qualified-value">-</span></div>
+      </div>
+      <div onclick="filterPipeline('converted')" class="cursor-pointer card-polish bg-white rounded-xl p-4 border-2 border-pipeline-converted/30 shadow-sm hover:border-pipeline-converted transition-colors">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="pipeline-dot rounded-full bg-pipeline-converted"></span>
+          <span class="text-sm font-medium text-gray-700">Converted</span>
+        </div>
+        <div class="text-xl font-bold" id="pipe-converted-count">-</div>
+        <div class="text-xs text-gray-400">HKD <span id="pipe-converted-value">-</span></div>
+      </div>
+      <div onclick="filterPipeline('escalated')" class="cursor-pointer card-polish bg-white rounded-xl p-4 border-2 border-pipeline-escalated/30 shadow-sm hover:border-pipeline-escalated transition-colors">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="pipeline-dot rounded-full bg-pipeline-escalated"></span>
+          <span class="text-sm font-medium text-gray-700">Escalated</span>
+        </div>
+        <div class="text-xl font-bold" id="pipe-escalated-count">-</div>
+      </div>
+      <div onclick="filterPipeline('lost')" class="cursor-pointer card-polish bg-white rounded-xl p-4 border-2 border-pipeline-lost/30 shadow-sm hover:border-pipeline-lost transition-colors">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="pipeline-dot rounded-full bg-pipeline-lost"></span>
+          <span class="text-sm font-medium text-gray-700">Lost</span>
+        </div>
+        <div class="text-xl font-bold" id="pipe-lost-count">-</div>
+      </div>
+    </div>
+
+    <!-- Lead Table -->
+    <div class="pipe-table-wrap bg-white rounded-xl border border-gray-100 shadow-sm">
+      <table class="w-full min-w-[700px]">
+        <thead>
+          <tr class="border-b border-gray-100 text-xs text-gray-500">
+            <th class="px-4 py-3 text-left">Lead</th>
+            <th class="px-4 py-3 text-left">Source</th>
+            <th class="px-4 py-3 text-left">Inquiry</th>
+            <th class="px-4 py-3 text-left">Status</th>
+            <th class="px-4 py-3 text-left">Est. Value</th>
+            <th class="px-4 py-3 text-left">BANT Score</th>
+            <th class="px-4 py-3 text-left">Created</th>
+            <th class="px-4 py-3 text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="leads-table" class="text-sm"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Conversations Tab -->
+  <div id="view-conversations" class="fade-in hidden" style="height: calc(100vh - 160px);">
+    <div class="conv-layout flex h-full">
+      <!-- Lead List -->
+      <div class="conv-lead-list w-1/3 bg-white border-r border-gray-100 overflow-y-auto">
+        <div class="p-4 border-b border-gray-100">
+          <h3 class="text-sm font-semibold text-gray-700">Active Conversations</h3>
+        </div>
+        <div id="conv-lead-list" class="divide-y divide-gray-50"></div>
+      </div>
+
+      <!-- Chat View -->
+      <div class="conv-chat w-2/3 flex flex-col bg-gray-50">
+        <!-- Chat Header -->
+        <div class="bg-white px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div id="chat-header-info" class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-whatsapp/10 flex items-center justify-center text-whatsapp font-semibold text-sm" id="chat-avatar">?</div>
+            <div>
+              <div class="font-medium text-sm" id="chat-lead-name">Select a conversation</div>
+              <div class="text-xs text-gray-500" id="chat-lead-company"></div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2" id="chat-actions">
+            <button onclick="triggerAiFollowup()" class="btn-smooth text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1 rounded-md hidden" id="btn-ai-followup">AI Follow-up</button>
+            <button onclick="confirmAction('convert')" class="btn-smooth text-xs bg-red-50 hover:bg-red-100 text-red-700 px-3 py-1 rounded-md hidden" id="btn-convert">Convert</button>
+            <button onclick="confirmAction('lost')" class="btn-smooth text-xs bg-gray-50 hover:bg-gray-100 text-gray-700 px-3 py-1 rounded-md hidden" id="btn-lost">Mark Lost</button>
+          </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-3" id="chat-messages">
+          <div class="empty-state">
+            <div class="empty-state-icon">
+              <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+            </div>
+            <div class="text-sm text-gray-500">Select a lead to view conversation</div>
+          </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="bg-white px-4 py-3 border-t border-gray-100">
+          <div class="chat-input-row flex gap-2">
+            <input type="text" id="chat-input" placeholder="Type a message (simulates inbound from lead)..." class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-whatsapp focus:ring-1 focus:ring-whatsapp outline-none" onkeydown="if(event.key==='Enter')sendInbound()">
+            <button onclick="sendInbound()" class="btn-smooth bg-whatsapp hover:bg-whatsappDark text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1">
+              <span class="loading-spinner hidden" id="spinner-send" style="width:16px;height:16px;border-width:2px;"></span>
+              Send
+            </button>
+            <button onclick="sendManualOutbound()" class="btn-smooth bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Manual Reply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Tab -->
+  <div id="view-settings" class="p-6 fade-in hidden">
+    <div class="max-w-2xl">
+      <div class="card-polish bg-white rounded-xl p-6 border border-gray-100 shadow-sm mb-4">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">Business Profile</h3>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Company Name</label>
+            <input type="text" id="setting-company" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Industry</label>
+            <select id="setting-industry" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              <option value="trading">Trading / Import-Export</option>
+              <option value="retail">Retail</option>
+              <option value="fnb">F&B / Restaurant</option>
+              <option value="professional">Professional Services</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">WhatsApp Number</label>
+            <input type="text" id="setting-whatsapp" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="+852 XXXX XXXX">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Languages Supported</label>
+            <div class="flex gap-2">
+              <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="setting-lang-en" checked> English</label>
+              <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="setting-lang-zhHK" checked> Cantonese</label>
+            </div>
+          </div>
+        </div>
+        <button onclick="saveSettings()" class="mt-4 btn-smooth bg-whatsapp hover:bg-whatsappDark text-white px-4 py-2 rounded-lg text-sm font-medium">Save</button>
+      </div>
+
+      <div class="card-polish bg-white rounded-xl p-6 border border-gray-100 shadow-sm mb-4">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">Automation Settings</h3>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm font-medium text-gray-700">Auto Follow-up</div>
+              <div class="text-xs text-gray-500">AI automatically responds to new leads</div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="setting-auto-followup" checked class="sr-only peer">
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:bg-whatsapp after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+            </label>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm font-medium text-gray-700">Follow-up Delay</div>
+              <div class="text-xs text-gray-500">Seconds before sending personalized follow-up</div>
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="number" id="setting-delay" class="w-20 border border-gray-200 rounded-lg px-2 py-1 text-sm text-right" value="300">
+              <span class="text-xs text-gray-500">sec</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-polish bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">AI Engine Info</h3>
+        <div class="text-sm text-gray-600 space-y-2">
+          <div><span class="text-gray-400">Engine:</span> Rule-based + Template System (Prototype)</div>
+          <div><span class="text-gray-400">Languages:</span> Cantonese (zh-HK) + English</div>
+          <div><span class="text-gray-400">Qualification:</span> BANT (Budget, Authority, Need, Timeline)</div>
+          <div><span class="text-gray-400">Escalation:</span> Auto-escalate at BANT score >= 3</div>
+          <div class="mt-3 p-3 bg-yellow-50 rounded-lg text-yellow-800 text-xs">
+            Note: This prototype uses a rule-based AI engine. For production, integrate with an LLM API (OpenAI, Claude, etc.) for more natural and flexible conversations.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- New Lead Modal -->
+  <div id="modal-new-lead" class="modal-overlay hidden">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">New WhatsApp Lead</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Name *</label>
+          <input type="text" id="lead-name" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 陳先生 / Sarah Wong">
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Phone (+852)</label>
+          <input type="text" id="lead-phone" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="+852 9123 4567">
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Company</label>
+          <input type="text" id="lead-company" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 陳氏貿易 / Retail HK Ltd">
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Industry</label>
+          <select id="lead-industry" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            <option value="trading">Trading / Import-Export</option>
+            <option value="retail">Retail</option>
+            <option value="fnb">F&B / Restaurant</option>
+            <option value="professional">Professional Services</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Inquiry Message * (Cantonese or English)</label>
+          <textarea id="lead-inquiry" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm h-24 resize-none" placeholder="e.g. 我想查詢你們嘅電子零件批發價格 / We need a reliable supplier for..."></textarea>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500 mb-1 block">Estimated Value (HKD)</label>
+          <input type="number" id="lead-value" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="50000" value="0">
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button onclick="submitNewLead()" class="btn-smooth bg-whatsapp hover:bg-whatsappDark text-white px-4 py-2 rounded-lg text-sm font-medium flex-1 flex items-center justify-center gap-2">
+          <span class="loading-spinner hidden" id="spinner-new-lead" style="width:16px;height:16px;border-width:2px;"></span>
+          Create Lead + Auto Follow-up
+        </button>
+        <button onclick="closeNewLeadModal()" class="btn-smooth bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation Dialog Modal -->
+  <div id="modal-confirm" class="confirm-modal hidden">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+      <div class="flex items-center gap-3 mb-4">
+        <div id="confirm-icon" class="w-10 h-10 rounded-full flex items-center justify-center"></div>
+        <h3 id="confirm-title" class="text-lg font-semibold text-gray-900"></h3>
+      </div>
+      <p id="confirm-message" class="text-sm text-gray-600 mb-2"></p>
+      <div id="confirm-detail" class="text-xs text-gray-400 mb-5"></div>
+      <div class="flex gap-3">
+        <button onclick="executeConfirmedAction()" id="confirm-btn" class="btn-smooth px-4 py-2 rounded-lg text-sm font-medium flex-1"></button>
+        <button onclick="cancelConfirmation()" class="btn-smooth bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CEO Demo Mode Overlay -->
+  <div id="demo-overlay" class="demo-overlay hidden">
+    <div class="bg-white rounded-2xl p-8 max-w-lg shadow-2xl text-center">
+      <!-- Step Indicator -->
+      <div class="flex justify-center gap-2 mb-6">
+        <div id="demo-step-1" class="w-3 h-3 rounded-full bg-whatsapp"></div>
+        <div id="demo-step-2" class="w-3 h-3 rounded-full bg-gray-300"></div>
+        <div id="demo-step-3" class="w-3 h-3 rounded-full bg-gray-300"></div>
+        <div id="demo-step-4" class="w-3 h-3 rounded-full bg-gray-300"></div>
+        <div id="demo-step-5" class="w-3 h-3 rounded-full bg-gray-300"></div>
+        <div id="demo-step-6" class="w-3 h-3 rounded-full bg-gray-300"></div>
+      </div>
+      <!-- Step Content -->
+      <div id="demo-step-icon" class="w-16 h-16 rounded-full bg-whatsapp/10 flex items-center justify-center mx-auto mb-4"></div>
+      <h2 id="demo-step-title" class="text-xl font-bold text-gray-900 mb-2"></h2>
+      <p id="demo-step-desc" class="text-sm text-gray-600 mb-2"></p>
+      <p id="demo-step-action" class="text-xs text-whatsapp font-medium mb-6"></p>
+      <!-- Controls -->
+      <div class="flex gap-3 justify-center">
+        <button onclick="demoPrevStep()" id="btn-demo-prev" class="btn-smooth bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Previous</button>
+        <button onclick="demoNextStep()" id="btn-demo-next" class="btn-smooth bg-whatsapp hover:bg-whatsappDark text-white px-6 py-2 rounded-lg text-sm font-medium">Next Step</button>
+        <button onclick="exitDemoMode()" class="btn-smooth bg-gray-100 hover:bg-gray-200 text-gray-400 px-4 py-2 rounded-lg text-sm font-medium">Exit Demo</button>
+      </div>
+      <!-- Progress -->
+      <div class="mt-4 text-xs text-gray-400">Step <span id="demo-current">1</span> of 6</div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

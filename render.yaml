@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: ai-sales-worker
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false  # Set your Render URL here, e.g. https://ai-sales-worker.onrender.com
+      - key: SKIP_AUTH
+        value: true  # Set to false when you want to enforce API-key auth
+      - key: DB_PATH
+        sync: false  # Optional: set to persistent disk path if using paid plan
+    healthCheckPath: /health

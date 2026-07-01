@@ -110,7 +110,9 @@ app.post('/api/leads', middleware.validateLeadCreation, (req, res) => {
     phone: req.body.phone || '',
     email: req.body.email || '',
     source: req.body.source || 'whatsapp',
-    language: ai.detectLanguage(req.body.inquiry || ''),
+    language: (req.body.language === 'en' || req.body.language === 'zh-HK')
+      ? req.body.language
+      : ai.detectLanguage(req.body.inquiry || ''),
     inquiry: req.body.inquiry || '',
     company: req.body.company || null,
     industry: req.body.industry || 'trading',

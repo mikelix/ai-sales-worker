@@ -210,6 +210,29 @@ function seedDemoData() {
   for (const msg of messagesData) {
     insertMsg.run(msg);
   }
+
+  // Seed automation_log entries for demo (so the Log tab shows data for seed leads)
+  const logEntries = [
+    { lead_id: 1, action: 'lead_created', result: { source: 'whatsapp', language: 'zh-HK' } },
+    { lead_id: 1, action: 'auto_acknowledgment', result: { template: 'initial_followup_zhHK', language: 'zh-HK' } },
+    { lead_id: 1, action: 'auto_reply', result: { template: 'qualification_bant_zhHK', bant_score: 2, new_status: 'contacted' } },
+    { lead_id: 2, action: 'lead_created', result: { source: 'website', language: 'en' } },
+    { lead_id: 2, action: 'auto_acknowledgment', result: { template: 'initial_followup_en', language: 'en' } },
+    { lead_id: 2, action: 'auto_reply', result: { template: 'qualification_bant_en', bant_score: 3, new_status: 'qualified' } },
+    { lead_id: 3, action: 'lead_created', result: { source: 'whatsapp', language: 'zh-HK' } },
+    { lead_id: 4, action: 'lead_created', result: { source: 'referral', language: 'en' } },
+    { lead_id: 4, action: 'auto_acknowledgment', result: { template: 'initial_followup_en', language: 'en' } },
+    { lead_id: 4, action: 'auto_reply', result: { template: 'qualification_bant_en', bant_score: 4, new_status: 'converted' } },
+    { lead_id: 4, action: 'lead_converted', result: { revenue: 120000, converted_at: '2026-06-29 15:30:00' } },
+    { lead_id: 5, action: 'lead_created', result: { source: 'whatsapp', language: 'zh-HK' } },
+  ];
+
+  const insertLog = db.prepare(`
+    INSERT INTO automation_log (lead_id, action, result) VALUES (?, ?, ?)
+  `);
+  for (const entry of logEntries) {
+    insertLog.run(entry.lead_id, entry.action, JSON.stringify(entry.result));
+  }
 }
 
 function getDb() {

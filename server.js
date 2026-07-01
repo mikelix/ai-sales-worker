@@ -228,7 +228,9 @@ app.post('/api/leads/:id/messages', middleware.validateMessageCreation, (req, re
         });
 
         const updates = { status: response.newStatus };
-        if (response.qualificationProgress) {
+        const hasQualProgress = response.qualificationProgress &&
+          Object.keys(response.qualificationProgress).length > 0;
+        if (hasQualProgress) {
           updates.qualification_notes = JSON.stringify(response.qualificationProgress);
           updates.qualification_score = response.bantScore;
         }
@@ -299,7 +301,11 @@ app.post('/api/leads/:id/ai-followup', (req, res) => {
   });
 
   const updates = { status: message.newStatus };
-  if (message.qualificationProgress) {
+  // Only update qualification fields if there are actual BANT signals
+  // (non-empty qualificationProgress with at least one criterion met)
+  const hasQualProgress = message.qualificationProgress &&
+    Object.keys(message.qualificationProgress).length > 0;
+  if (hasQualProgress) {
     updates.qualification_notes = JSON.stringify(message.qualificationProgress);
     updates.qualification_score = message.bantScore;
   }

@@ -271,6 +271,9 @@ function generateNextMessage(lead, inboundMessage = null) {
   }
 
   // No inbound message - generate proactive follow-up based on status
+  // Preserve existing qualification_score when no new BANT signals to analyze
+  const existingScore = lead.qualification_score || 0;
+
   if (lead.status === 'new') {
     const content = templates.initial_followup[lang](name, lead.inquiry, industry);
     return {
@@ -280,7 +283,7 @@ function generateNextMessage(lead, inboundMessage = null) {
       template_used: `initial_followup_${lang === 'zh-HK' ? 'zhHK' : 'en'}`,
       newStatus: 'contacted',
       qualificationProgress,
-      bantScore: 0
+      bantScore: existingScore
     };
   }
 
@@ -294,7 +297,7 @@ function generateNextMessage(lead, inboundMessage = null) {
         template_used: `qualification_bant_${lang === 'zh-HK' ? 'zhHK' : 'en'}`,
         newStatus: 'contacted',
         qualificationProgress,
-        bantScore: Object.values(qualificationProgress).filter(v => v).length
+        bantScore: Math.max(existingScore, Object.values(qualificationProgress).filter(v => v).length)
       };
     }
   }
